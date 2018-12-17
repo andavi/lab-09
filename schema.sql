@@ -2,6 +2,7 @@ DROP TABLE IF EXISTS weathers;
 DROP TABLE IF EXISTS yelps;
 DROP TABLE IF EXISTS movies;
 DROP TABLE IF EXISTS meetups;
+DROP TABLE IF EXISTS trails;
 DROP TABLE IF EXISTS locations;
 
 CREATE TABLE locations ( 
@@ -50,4 +51,19 @@ CREATE TABLE meetups (
   creation_date CHAR(15), 
   host VARCHAR(255), 
   location_id INTEGER NOT NULL REFERENCES locations(id) 
+);
+
+CREATE TABLE trails (
+  id SERIAL PRIMARY KEY, 
+  name VARCHAR(255), 
+  location VARCHAR(255),
+  length NUMERIC(4,2),
+  stars NUMERIC(2,1),
+  star_votes INTEGER,
+  summary VARCHAR(255),
+  trail_url VARCHAR(255),
+  conditions VARCHAR(255),
+  condition_date CHAR(15),
+  condition_time CHAR(15),
+  location_id INTEGER NOT NULL REFERENCES locations(id)
 );
