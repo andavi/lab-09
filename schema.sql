@@ -19,8 +19,7 @@ CREATE TABLE weathers (
   forecast VARCHAR(255), 
   time VARCHAR(255), 
   created_at CHAR(15),
-  location_id INTEGER NOT NULL,
-  FOREIGN KEY (location_id) REFERENCES locations (id)
+  location_id INTEGER NOT NULL REFERENCES locations(id) 
 );
 
 CREATE TABLE yelps ( 
@@ -30,8 +29,7 @@ CREATE TABLE yelps (
   rating NUMERIC(2,1),
   url VARCHAR(500), 
   created_at CHAR(15),
-  location_id INTEGER NOT NULL
-  FOREIGN KEY (location_id) REFERENCES locations (id)
+  location_id INTEGER NOT NULL REFERENCES locations(id) 
 );
 
 CREATE TABLE movies (
@@ -44,8 +42,7 @@ CREATE TABLE movies (
   popularity NUMERIC(6,4),
   released_on CHAR(10),
   created_at CHAR(15),
-  location_id INTEGER NOT NULL,
-  FOREIGN KEY (location_id) REFERENCES locations (id)
+  location_id INTEGER NOT NULL REFERENCES locations(id) 
 );
 
 CREATE TABLE meetups (
