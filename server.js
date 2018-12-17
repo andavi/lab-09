@@ -32,6 +32,7 @@ app.get('/location', getLocation)
 app.get('/weather', getWeather)
 app.get('/yelp', getYelp);
 app.get('/movies', getMovies);
+app.get('/meetups', getMeetups);
 
 
 // Handlers
@@ -144,9 +145,36 @@ function getMovies(req, res) {
   Movie.lookup(movieOptions);
 }
 
+function getMeetups(req, res) {
+  const meetupOptions = {
+    tableName: Meetup.tableName,
+
+    location: req.query.data.id,
+
+    cacheHit: function(result) {
+      res.send(result.rows);
+    },
+
+    cacheMiss: function() {
+      const url = `https://api.meetup.com/find/groups?location=${req.query.data.search_query}&page=20&key=${process.env.MEETUP_API_KEY}`;
+
+      superagent.get(url)
+        .then(results => {
+          const meetupSummaries = results.body.map(meetup => {
+            const summary = new Meetup(meetup);
+            summary.save(req.query.data.id);
+            return summary;
+          });
+          res.send(meetupSummaries);
+        })
+        .catch(err => handleError(err, res));
+    }
+  };
+  Meetup.lookup(meetupOptions);
+}
+
 
 // General lookup function for everything besides location
-// Understanding this function was my "aha" moment
 function lookup(options) {
   const SQL = `SELECT * FROM ${options.tableName} WHERE location_id=$1;`;
   const values = [options.location];
@@ -165,12 +193,12 @@ function lookup(options) {
 
 // Models
 function Location (query, location) {
-  // this.tableName = 'locations';
   this.search_query = query
   this.formatted_query = location.formatted_address
   this.latitude = location.geometry.location.lat
   this.longitude = location.geometry.location.lng
 }
+Location.tableName = 'locations';
 Location.lookup = location => {
   const SQL = `SELECT * FROM locations WHERE search_query=$1`;
   const values = [location.query];
@@ -199,7 +227,6 @@ Location.prototype = {
 }
 
 function Weather (day) {
-  // this.tableName = 'weathers';
   this.forecast = day.summary
   this.time = new Date(day.time * 1000).toDateString()
 }
@@ -251,6 +278,23 @@ Movie.prototype = {
   save: function(location_id) {
     const SQL = `INSERT INTO ${Movie.tableName} (title, overview, average_votes, total_votes, image_url, popularity, released_on, location_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8);`;
     const values = [this.title, this.overview, this.average_votes, this.total_votes, this.image_url, this.popularity, this.released_on, location_id];
+
+    client.query(SQL, values);
+  }
+}
+
+function Meetup(meetup) {
+  this.link = meetup.link;
+  this.name = meetup.name;
+  this.creation_date = new Date(meetup.created).toDateString();
+  this.host = meetup.organizer.name;
+}
+Meetup.tableName = 'meetups';
+Meetup.lookup = lookup;
+Meetup.prototype = {
+  save: function(location_id) {
+    const SQL = `INSERT INTO ${Meetup.tableName} (link, name, creation_date, host, location_id) VALUES ($1, $2, $3, $4, $5);`;
+    const values = [this.link, this.name, this.creation_date, this.host, location_id];
 
     client.query(SQL, values);
   }
