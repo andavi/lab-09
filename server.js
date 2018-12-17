@@ -33,6 +33,7 @@ app.get('/weather', getWeather)
 app.get('/yelp', getYelp);
 app.get('/movies', getMovies);
 app.get('/meetups', getMeetups);
+app.get('/trails', getTrails);
 
 
 // Handlers
@@ -173,6 +174,34 @@ function getMeetups(req, res) {
   Meetup.lookup(meetupOptions);
 }
 
+function getTrails(req, res) {
+  const trailOptions = {
+    tableName: Trail.tableName,
+
+    location: req.query.data.id,
+
+    cacheHit: function(result) {
+      res.send(result.rows);
+    },
+
+    cacheMiss: function() {
+      const url = `https://www.hikingproject.com/data/get-trails?lat=${req.query.data.latitude}&lon=${req.query.data.longitude}&key=${process.env.TRAILS_API_KEY}`;
+
+      superagent.get(url)
+        .then(results => {
+          const trailSummaries = results.body.trails.map(trail => {
+            const summary = new Trail(trail);
+            summary.save(req.query.data.id);
+            return summary;
+          });
+          res.send(trailSummaries);
+        })
+        .catch(err => handleError(err, res));
+    }
+  };
+  Trail.lookup(trailOptions);
+}
+
 
 // General lookup function for everything besides location
 function lookup(options) {
@@ -295,6 +324,28 @@ Meetup.prototype = {
   save: function(location_id) {
     const SQL = `INSERT INTO ${Meetup.tableName} (link, name, creation_date, host, location_id) VALUES ($1, $2, $3, $4, $5);`;
     const values = [this.link, this.name, this.creation_date, this.host, location_id];
+    client.query(SQL, values);
+  }
+}
+
+function Trail(trail) {
+  this.name = trail.name;
+  this.location = trail.location;
+  this.length = trail.length;
+  this.stars = trail.stars;
+  this.star_votes = trail.starVotes;
+  this.summary = trail.summary;
+  this.trail_url = trail.url;
+  this.conditions = trail.conditionStatus;
+  this.condition_date = trail.conditionDate.split(' ')[0];
+  this.condition_time = trail.conditionDate.split(' ')[1];
+}
+Trail.tableName = 'trails';
+Trail.lookup = lookup;
+Trail.prototype = {
+  save: function(location_id) {
+    const SQL = `INSERT INTO ${Trail.tableName} (name, location, length, stars, star_votes, summary, trail_url, conditions, condition_date, condition_time, location_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);`;
+    const values = [this.name, this.location, this.length, this.stars, this.star_votes, this.summary, this.trail_url, this.conditions, this.condition_date, this.condition_time, location_id];
 
     client.query(SQL, values);
   }
