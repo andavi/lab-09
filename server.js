@@ -27,6 +27,15 @@ function handleError (err, res) {
   if (res) res.status(500).send('Sorry something went wrong!')
 }
 
+// Timeouts
+const timeouts = {
+  weather: 15 * 1000, // 15 seconds
+  yelp: 7 * 60 * 60 * 24 * 1000, // 7 days
+  movie: 60 * 60 * 24 * 1000, // 24 hours
+  meetup: 60 * 60 * 24 * 1000, // 24 hours
+  trail: 60 * 60 * 1000 // 1 hour
+}
+
 // Routes
 app.get('/location', getLocation)
 app.get('/weather', getWeather)
@@ -67,6 +76,8 @@ function getWeather (req, res) {
 
     location: req.query.data.id,
 
+    timeout: timeouts.weather,
+
     cacheHit: function(result) {
       res.send(result.rows);
     },
@@ -94,6 +105,8 @@ function getYelp(req, res) {
     tableName: Yelp.tableName,
 
     location: req.query.data.id,
+
+    timeout: timeouts.yelp,
 
     cacheHit: function(result) {
       res.send(result.rows);
@@ -124,6 +137,8 @@ function getMovies(req, res) {
 
     location: req.query.data.id,
 
+    timeout: timeouts.movie,
+
     cacheHit: function(result) {
       res.send(result.rows);
     },
@@ -152,6 +167,8 @@ function getMeetups(req, res) {
 
     location: req.query.data.id,
 
+    timeout: timeouts.meetup,
+
     cacheHit: function(result) {
       res.send(result.rows);
     },
@@ -179,6 +196,8 @@ function getTrails(req, res) {
     tableName: Trail.tableName,
 
     location: req.query.data.id,
+
+    timeout: timeouts.trail,
 
     cacheHit: function(result) {
       res.send(result.rows);
@@ -211,12 +230,29 @@ function lookup(options) {
   client.query(SQL, values)
     .then(result => {
       if (result.rowCount > 0) {
-        options.cacheHit(result);
+        if (Date.now() - result.rows[0].created_at > options.timeout) {
+          deleteRows(options);
+        } else {
+          options.cacheHit(result);
+        }
       } else {
         options.cacheMiss();
       }
     })
     .catch(error => handleError(error));
+}
+
+// General delete function
+function deleteRows(options) {
+  const SQL = `DELETE FROM ${options.tableName} WHERE location_id=$1;`;
+  const values = [options.location];
+  console.log(`cache invalid - deleting rows in ${options.tableName}`)
+
+  client.query(SQL, values)
+    .then(() => {
+      options.cacheMiss();
+    })
+    .catch(err => handleError(err));
 }
 
 
@@ -244,8 +280,8 @@ Location.lookup = location => {
 }
 Location.prototype = {
   save: function() {
-    const SQL = `INSERT INTO locations (search_query, formatted_query, latitude, longitude) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING RETURNING id;`;
-    const values = [this.search_query, this.formatted_query, this.latitude, this.longitude];
+    const SQL = `INSERT INTO locations (search_query, formatted_query, latitude, longitude, created_at) VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING RETURNING id;`;
+    const values = [this.search_query, this.formatted_query, this.latitude, this.longitude, Date.now()];
 
     return client.query(SQL, values)
       .then(result => {
@@ -263,8 +299,8 @@ Weather.tableName = 'weathers';
 Weather.lookup = lookup;
 Weather.prototype = {
   save: function(location_id) {
-    const SQL = `INSERT INTO ${Weather.tableName} (forecast, time, location_id) VALUES ($1, $2, $3);`;
-    const values = [this.forecast, this.time, location_id];
+    const SQL = `INSERT INTO ${Weather.tableName} (forecast, time, created_at, location_id) VALUES ($1, $2, $3, $4);`;
+    const values = [this.forecast, this.time, Date.now(), location_id];
 
     client.query(SQL, values);
   }
@@ -281,8 +317,8 @@ Yelp.tableName = 'yelps';
 Yelp.lookup = lookup;
 Yelp.prototype = {
   save: function(location_id) {
-    const SQL = `INSERT INTO ${Yelp.tableName} (name, price, rating, url, location_id) VALUES ($1, $2, $3, $4, $5);`;
-    const values = [this.name, this.price, this.rating, this.url, location_id];
+    const SQL = `INSERT INTO ${Yelp.tableName} (name, price, rating, url, created_at, location_id) VALUES ($1, $2, $3, $4, $5, $6);`;
+    const values = [this.name, this.price, this.rating, this.url, Date.now(), location_id];
 
     client.query(SQL, values);
   }
@@ -305,8 +341,8 @@ Movie.tableName = 'movies';
 Movie.lookup = lookup;
 Movie.prototype = {
   save: function(location_id) {
-    const SQL = `INSERT INTO ${Movie.tableName} (title, overview, average_votes, total_votes, image_url, popularity, released_on, location_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8);`;
-    const values = [this.title, this.overview, this.average_votes, this.total_votes, this.image_url, this.popularity, this.released_on, location_id];
+    const SQL = `INSERT INTO ${Movie.tableName} (title, overview, average_votes, total_votes, image_url, popularity, released_on, created_at, location_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);`;
+    const values = [this.title, this.overview, this.average_votes, this.total_votes, this.image_url, this.popularity, this.released_on, Date.now(), location_id];
 
     client.query(SQL, values);
   }
@@ -322,8 +358,8 @@ Meetup.tableName = 'meetups';
 Meetup.lookup = lookup;
 Meetup.prototype = {
   save: function(location_id) {
-    const SQL = `INSERT INTO ${Meetup.tableName} (link, name, creation_date, host, location_id) VALUES ($1, $2, $3, $4, $5);`;
-    const values = [this.link, this.name, this.creation_date, this.host, location_id];
+    const SQL = `INSERT INTO ${Meetup.tableName} (link, name, creation_date, host, created_at, location_id) VALUES ($1, $2, $3, $4, $5, $6);`;
+    const values = [this.link, this.name, this.creation_date, this.host, Date.now(), location_id];
     client.query(SQL, values);
   }
 }
@@ -344,8 +380,8 @@ Trail.tableName = 'trails';
 Trail.lookup = lookup;
 Trail.prototype = {
   save: function(location_id) {
-    const SQL = `INSERT INTO ${Trail.tableName} (name, location, length, stars, star_votes, summary, trail_url, conditions, condition_date, condition_time, location_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);`;
-    const values = [this.name, this.location, this.length, this.stars, this.star_votes, this.summary, this.trail_url, this.conditions, this.condition_date, this.condition_time, location_id];
+    const SQL = `INSERT INTO ${Trail.tableName} (name, location, length, stars, star_votes, summary, trail_url, conditions, condition_date, condition_time, created_at, location_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12);`;
+    const values = [this.name, this.location, this.length, this.stars, this.star_votes, this.summary, this.trail_url, this.conditions, this.condition_date, this.condition_time, Date.now(), location_id];
 
     client.query(SQL, values);
   }
@@ -353,9 +389,9 @@ Trail.prototype = {
 
 
 // Bad path
-// app.get('/*', function(req, res) {
-//   res.status(404).send('You are in the wrong place');
-// });
+app.get('/*', function(req, res) {
+  res.status(404).send('You are in the wrong place');
+});
 
 // Listen
 app.listen(PORT, () => {
