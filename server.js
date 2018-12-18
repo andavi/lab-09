@@ -27,6 +27,15 @@ function handleError (err, res) {
   if (res) res.status(500).send('Sorry something went wrong!')
 }
 
+// Timeouts
+const timeouts = {
+  weather: 15 * 1000, // 15 seconds
+  yelp: 7 * 60 * 60 * 24 * 1000, // 7 days
+  movie: 60 * 60 * 24 * 1000, // 24 hours
+  meetup: 60 * 60 * 24 * 1000, // 24 hours
+  trail: 60 * 60 * 1000 // 1 hour
+}
+
 // Routes
 app.get('/location', getLocation)
 app.get('/weather', getWeather)
@@ -67,6 +76,8 @@ function getWeather (req, res) {
 
     location: req.query.data.id,
 
+    timeout: timeouts.weather,
+
     cacheHit: function(result) {
       res.send(result.rows);
     },
@@ -94,6 +105,8 @@ function getYelp(req, res) {
     tableName: Yelp.tableName,
 
     location: req.query.data.id,
+
+    timeout: timeouts.yelp,
 
     cacheHit: function(result) {
       res.send(result.rows);
@@ -124,6 +137,8 @@ function getMovies(req, res) {
 
     location: req.query.data.id,
 
+    timeout: timeouts.movie,
+
     cacheHit: function(result) {
       res.send(result.rows);
     },
@@ -152,6 +167,8 @@ function getMeetups(req, res) {
 
     location: req.query.data.id,
 
+    timeout: timeouts.meetup,
+
     cacheHit: function(result) {
       res.send(result.rows);
     },
@@ -179,6 +196,8 @@ function getTrails(req, res) {
     tableName: Trail.tableName,
 
     location: req.query.data.id,
+
+    timeout: timeouts.trail,
 
     cacheHit: function(result) {
       res.send(result.rows);
@@ -211,12 +230,29 @@ function lookup(options) {
   client.query(SQL, values)
     .then(result => {
       if (result.rowCount > 0) {
-        options.cacheHit(result);
+        if (Date.now() - result.rows[0].created_at > options.timeout) {
+          deleteRows(options);
+        } else {
+          options.cacheHit(result);
+        }
       } else {
         options.cacheMiss();
       }
     })
     .catch(error => handleError(error));
+}
+
+// General delete function
+function deleteRows(options) {
+  const SQL = `DELETE FROM ${options.tableName} WHERE location_id=$1;`;
+  const values = [options.location];
+  console.log(`cache invalid - deleting rows in ${options.tableName}`)
+
+  client.query(SQL, values)
+    .then(() => {
+      options.cacheMiss();
+    })
+    .catch(err => handleError(err));
 }
 
 
@@ -353,9 +389,9 @@ Trail.prototype = {
 
 
 // Bad path
-// app.get('/*', function(req, res) {
-//   res.status(404).send('You are in the wrong place');
-// });
+app.get('/*', function(req, res) {
+  res.status(404).send('You are in the wrong place');
+});
 
 // Listen
 app.listen(PORT, () => {
