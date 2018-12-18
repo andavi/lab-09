@@ -24,24 +24,24 @@ dependencies: dotenv, express, cors, superagent
 
 Estimated Time: 1 hour  
 Start Time: 1900  
-End Time:   
-Actual Time Needed:  
+End Time:   2000
+Actual Time Needed:  1 hour
 
 ### Feature 2
 ### Retrieve Trail Information
 
-Estimated Time:  
-Start Time:   
-End Time:   
+Estimated Time:  1 hour
+Start Time:   1900
+End Time:   2000
 Actual Time Needed:  
 
 ### Feature 3
 ### Cache Invalidation
 
-Estimated Time:  
-Start Time:   
-End Time:   
-Actual Time Needed: 
+Estimated Time:  1 hour
+Start Time:   1900
+End Time:   2000
+Actual Time Needed: 1 hour
 
 
 ## Sources and Collaborators
